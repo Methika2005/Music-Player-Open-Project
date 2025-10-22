@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🎵 Playlist Manager</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>🎧 My Playlist</h1>
+
+    <div class="player">
+      <h2>Now Playing:</h2>
+      <p id="currentSong">Loading...</p>
+      <div class="controls">
+        <button id="prevBtn">⏮️ Prev</button>
+        <button id="playPauseBtn">▶️ Play</button>
+        <button id="nextBtn">⏭️ Next</button>
+      </div>
+    </div>
+
+    <div class="song-list">
+      <h3>All Songs</h3>
+      <ul id="songList"></ul>
+    </div>
+
+    <form id="addForm" class="add-form">
+      <h3>Add New Song</h3>
+      <input type="text" id="title" placeholder="Song Title" required>
+      <input type="text" id="artist" placeholder="Artist">
+      <button type="submit">➕ Add</button>
+    </form>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
