@@ -1,10 +1,13 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
 
+# ------------------- CONFIG -------------------
+FIXED_DURATION = 30  # ⏱️ Change this to set duration for all songs (in seconds)
+
 # ------------------- Song Node -------------------
 class Song:
-    def __init__(self, title, artist="Unknown", duration=3.0):
+    def __init__(self, title, artist="Unknown", duration=FIXED_DURATION):
         self.title = title
         self.artist = artist
         self.duration = duration
@@ -18,8 +21,9 @@ class Playlist:
         self.tail = None
         self.current = None
         self.is_playing = False
+        self.loop_current = False  # 🔁 new flag
 
-    def add_song(self, title, artist="Unknown", duration=3.0):
+    def add_song(self, title, artist="Unknown", duration=FIXED_DURATION):
         new_song = Song(title, artist, duration)
         if not self.head:
             self.head = self.tail = self.current = new_song
@@ -47,13 +51,23 @@ class Playlist:
         return False
 
     def next_song(self):
+        # 🔁 Loop current song if enabled
+        if self.loop_current:
+            return self.current
         if self.current and self.current.next:
             self.current = self.current.next
+        else:
+            self.current = self.head  # loop entire playlist
         return self.current
 
     def prev_song(self):
+        # 🔁 If loop_current enabled, stay on same song
+        if self.loop_current:
+            return self.current
         if self.current and self.current.prev:
             self.current = self.current.prev
+        else:
+            self.current = self.tail
         return self.current
 
     def select_song(self, title):
@@ -65,9 +79,14 @@ class Playlist:
             temp = temp.next
         return None
 
+    def toggle_loop(self):
+        self.loop_current = not self.loop_current
+        return self.loop_current
+
+
 playlist = Playlist()
 
-# Dummy data
+# ------------------- Dummy Data -------------------
 demo_songs = [
     ("Someone Like You", "Adele"),
     ("Blinding Lights", "The Weeknd"),
@@ -99,7 +118,9 @@ def get_songs():
     current = {
         "title": playlist.current.title if playlist.current else "None",
         "artist": playlist.current.artist if playlist.current else "Unknown",
-        "is_playing": playlist.is_playing
+        "is_playing": playlist.is_playing,
+        "duration": playlist.current.duration if playlist.current else FIXED_DURATION,
+        "loop_current": playlist.loop_current
     }
     return jsonify({"songs": songs, "current": current})
 
@@ -120,6 +141,7 @@ def select_song():
     data = request.get_json()
     song = playlist.select_song(data['title'])
     if song:
+        playlist.is_playing = True
         return jsonify({"title": song.title, "artist": song.artist})
     return jsonify({"error": "Song not found"}), 404
 
@@ -131,16 +153,17 @@ def playpause():
 @app.route('/next', methods=['POST'])
 def next_song():
     song = playlist.next_song()
-    if song:
-        return jsonify({"title": song.title, "artist": song.artist})
-    return jsonify({"error": "No next song"}), 404
+    return jsonify({"title": song.title, "artist": song.artist})
 
 @app.route('/prev', methods=['POST'])
 def prev_song():
     song = playlist.prev_song()
-    if song:
-        return jsonify({"title": song.title, "artist": song.artist})
-    return jsonify({"error": "No previous song"}), 404
+    return jsonify({"title": song.title, "artist": song.artist})
+
+@app.route('/toggle_loop', methods=['POST'])
+def toggle_loop():
+    state = playlist.toggle_loop()
+    return jsonify({"looping": state})
 
 if __name__ == '__main__':
     app.run(debug=True)
