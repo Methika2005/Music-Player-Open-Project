@@ -12,10 +12,21 @@
     <div class="player">
       <h2>Now Playing:</h2>
       <p id="currentSong">Loading...</p>
+
+      <!-- Timeline Bar + Time Display -->
+      <div class="timeline-container">
+        <span id="currentTime">0:00</span>
+        <div class="timeline">
+          <div id="progressBar"></div>
+        </div>
+        <span id="totalTime">0:30</span>
+      </div>
+
       <div class="controls">
         <button id="prevBtn">⏮️ Prev</button>
         <button id="playPauseBtn">▶️ Play</button>
         <button id="nextBtn">⏭️ Next</button>
+        <button id="loopBtn">🔁 Loop</button>
       </div>
     </div>
 
