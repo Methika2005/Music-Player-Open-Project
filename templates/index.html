@@ -1,33 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>🎵 Playlist Manager</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+
 <body>
   <div class="container">
     <h1>🎧 My Playlist</h1>
 
     <div class="player">
+
       <h2>Now Playing:</h2>
       <p id="currentSong">Loading...</p>
 
       <!-- Timeline Bar + Time Display -->
       <div class="timeline-container">
         <span id="currentTime">0:00</span>
-        <div class="timeline">
+        <div class="timeline" id="timeline">
           <div id="progressBar"></div>
+          <div id="progressKnob"></div> <!-- 🎚️ draggable knob -->
         </div>
         <span id="totalTime">0:30</span>
       </div>
+
 
       <div class="controls">
         <button id="prevBtn">⏮️ Prev</button>
         <button id="playPauseBtn">▶️ Play</button>
         <button id="nextBtn">⏭️ Next</button>
         <button id="loopBtn">🔁 Loop</button>
+        <button id="shuffleBtn">🔀 Shuffle</button> <!-- 🔀 Added -->
       </div>
+
     </div>
 
     <div class="song-list">
@@ -45,4 +52,5 @@
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
+
 </html>

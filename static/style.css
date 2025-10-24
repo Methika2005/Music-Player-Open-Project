@@ -46,11 +46,13 @@ h1 {
 }
 
 .timeline {
+  position: relative;
   flex: 1;
   height: 8px;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 10px;
   overflow: hidden;
+  cursor: pointer;
 }
 
 #progressBar {
@@ -58,7 +60,22 @@ h1 {
   height: 100%;
   background: #00FFB3;
   border-radius: 10px;
-  transition: width 1s linear;
+  transition: width 0.1s linear;
+}
+
+/* ✅ New draggable bubble */
+.progress-bubble {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  background: #FFD700;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: left 0.1s linear;
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.8);
 }
 
 #currentTime, #totalTime {
@@ -67,6 +84,26 @@ h1 {
   width: 45px;
   text-align: center;
 }
+
+/* 🎚️ Bubble Knob */
+#progressKnob {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -50%) scale(1);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 5px rgba(255,255,255,0.7);
+  cursor: grab;
+  transition: left 0.1s linear, transform 0.1s ease; /* smooth scale */
+}
+
+#progressKnob.dragging {
+  transform: translate(-50%, -50%) scale(1.5); /* grow while dragging */
+}
+
 
 /* Controls and Buttons */
 .controls {

@@ -1,9 +1,10 @@
 from flask import Flask, render_template, request, jsonify
+import random  # ✅ Needed for shuffle
 
 app = Flask(__name__)
 
 # ------------------- CONFIG -------------------
-FIXED_DURATION = 30  # ⏱️ Change this to set duration for all songs (in seconds)
+FIXED_DURATION = 30  # ⏱️ Duration for all songs (in seconds)
 
 # ------------------- Song Node -------------------
 class Song:
@@ -21,7 +22,7 @@ class Playlist:
         self.tail = None
         self.current = None
         self.is_playing = False
-        self.loop_current = False  # 🔁 new flag
+        self.loop_current = False  # 🔁 Loop current flag
 
     def add_song(self, title, artist="Unknown", duration=FIXED_DURATION):
         new_song = Song(title, artist, duration)
@@ -51,17 +52,15 @@ class Playlist:
         return False
 
     def next_song(self):
-        # 🔁 Loop current song if enabled
         if self.loop_current:
             return self.current
         if self.current and self.current.next:
             self.current = self.current.next
         else:
-            self.current = self.head  # loop entire playlist
+            self.current = self.head
         return self.current
 
     def prev_song(self):
-        # 🔁 If loop_current enabled, stay on same song
         if self.loop_current:
             return self.current
         if self.current and self.current.prev:
@@ -82,6 +81,27 @@ class Playlist:
     def toggle_loop(self):
         self.loop_current = not self.loop_current
         return self.loop_current
+
+    def shuffle(self):
+        """🔀 Shuffle the linked list order"""
+        nodes = []
+        temp = self.head
+        while temp:
+            nodes.append(temp)
+            temp = temp.next
+
+        if len(nodes) <= 1:
+            return  # Nothing to shuffle
+
+        random.shuffle(nodes)
+
+        for i in range(len(nodes)):
+            nodes[i].prev = nodes[i - 1] if i > 0 else None
+            nodes[i].next = nodes[i + 1] if i < len(nodes) - 1 else None
+
+        self.head = nodes[0]
+        self.tail = nodes[-1]
+        self.current = self.head
 
 
 playlist = Playlist()
@@ -165,5 +185,12 @@ def toggle_loop():
     state = playlist.toggle_loop()
     return jsonify({"looping": state})
 
+# ✅ NEW ROUTE: Shuffle
+@app.route('/shuffle', methods=['POST'])
+def shuffle_songs():
+    playlist.shuffle()
+    return jsonify({"message": "Playlist shuffled!"})
+
+# ------------------- MAIN -------------------
 if __name__ == '__main__':
     app.run(debug=True)
