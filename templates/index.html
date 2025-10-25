@@ -36,15 +36,20 @@
       <ul id="songList"></ul>
     </div>
 
+    <!-- 🎵 Add Song by Genre Section (Updated) -->
     <form id="addForm" class="add-form">
       <h3>Add Song by Genre</h3>
-      <select id="genreSelect" required>
-        <option value="" disabled selected>Select Genre</option>
-      </select>
 
-      <select id="songSelect" disabled>
-        <option value="">Select Song</option>
-      </select>
+      <!-- ✅ Dropdowns side by side -->
+      <div class="dropdown-row">
+        <select id="genreSelect" required>
+          <option value="" disabled selected>Select Genre</option>
+        </select>
+
+        <select id="songSelect" disabled>
+          <option value="">Select Song</option>
+        </select>
+      </div>
 
       <div class="add-buttons">
         <button id="addSpecificBtn" type="button">🎶 Add This Song</button>
