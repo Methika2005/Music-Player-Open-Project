@@ -1,12 +1,11 @@
 from flask import Flask, render_template, request, jsonify
-import random  # ✅ Needed for shuffle
+import random
 
 app = Flask(__name__)
 
-# ------------------- CONFIG -------------------
-FIXED_DURATION = 30  # ⏱️ Duration for all songs (in seconds)
+FIXED_DURATION = 30
 
-# ------------------- Song Node -------------------
+# ---------------- Song Node ----------------
 class Song:
     def __init__(self, title, artist="Unknown", duration=FIXED_DURATION):
         self.title = title
@@ -15,14 +14,12 @@ class Song:
         self.next = None
         self.prev = None
 
-# ------------------- Playlist Class -------------------
+# ---------------- Playlist ----------------
 class Playlist:
     def __init__(self):
-        self.head = None
-        self.tail = None
-        self.current = None
+        self.head = self.tail = self.current = None
         self.is_playing = False
-        self.loop_current = False  # 🔁 Loop current flag
+        self.loop_current = False
 
     def add_song(self, title, artist="Unknown", duration=FIXED_DURATION):
         new_song = Song(title, artist, duration)
@@ -83,46 +80,74 @@ class Playlist:
         return self.loop_current
 
     def shuffle(self):
-        """🔀 Shuffle the linked list order"""
         nodes = []
         temp = self.head
         while temp:
             nodes.append(temp)
             temp = temp.next
-
         if len(nodes) <= 1:
-            return  # Nothing to shuffle
-
+            return
         random.shuffle(nodes)
-
         for i in range(len(nodes)):
             nodes[i].prev = nodes[i - 1] if i > 0 else None
             nodes[i].next = nodes[i + 1] if i < len(nodes) - 1 else None
-
-        self.head = nodes[0]
-        self.tail = nodes[-1]
+        self.head, self.tail = nodes[0], nodes[-1]
         self.current = self.head
 
 
 playlist = Playlist()
 
-# ------------------- Dummy Data -------------------
-demo_songs = [
-    ("Someone Like You", "Adele"),
-    ("Blinding Lights", "The Weeknd"),
-    ("Perfect", "Ed Sheeran"),
-    ("Believer", "Imagine Dragons"),
-    ("Shape of You", "Ed Sheeran"),
-    ("Rolling in the Deep", "Adele"),
-    ("Counting Stars", "OneRepublic"),
-    ("Let Her Go", "Passenger"),
-    ("Hymn for the Weekend", "Coldplay"),
-    ("Cheap Thrills", "Sia")
-]
-for title, artist in demo_songs:
-    playlist.add_song(title, artist)
+# ---------------- Genre Song Data ----------------
+genre_songs = {
+    "Pop": [
+        ("Someone Like You", "Adele"),
+        ("Blinding Lights", "The Weeknd"),
+        ("Perfect", "Ed Sheeran"),
+        ("Shape of You", "Ed Sheeran"),
+        ("Levitating", "Dua Lipa")
+    ],
+    "Rock": [
+        ("Believer", "Imagine Dragons"),
+        ("Numb", "Linkin Park"),
+        ("Smells Like Teen Spirit", "Nirvana"),
+        ("Hotel California", "Eagles"),
+        ("In The End", "Linkin Park")
+    ],
+    "Indie": [
+        ("Let Her Go", "Passenger"),
+        ("Youth", "Daughter"),
+        ("Dog Days Are Over", "Florence + The Machine"),
+        ("Electric Feel", "MGMT"),
+        ("Little Talks", "Of Monsters and Men")
+    ],
+    "Classics": [
+        ("Bohemian Rhapsody", "Queen"),
+        ("Imagine", "John Lennon"),
+        ("Hey Jude", "The Beatles"),
+        ("Hallelujah", "Leonard Cohen"),
+        ("Sweet Caroline", "Neil Diamond")
+    ],
+        "Bollywood": [
+        ("Tum Hi Ho", "Arijit Singh"),
+        ("Kabira", "Tochi Raina, Rekha Bhardwaj"),
+        ("Channa Mereya", "Arijit Singh"),
+        ("Apna Bana Le", "Arijit Singh"),
+        ("Kun Faya Kun", "A.R. Rahman"),
+        ("Kalank Title Track", "Arijit Singh"),
+        ("Tera Ban Jaunga", "Akhil Sachdeva, Tulsi Kumar"),
+        ("Raanjhanaa Title Song", "Jaswinder Singh, Shiraz Uppal"),
+        ("Kesariya", "Arijit Singh"),
+        ("Ae Dil Hai Mushkil", "Arijit Singh")
+    ]    
+}
 
-# ------------------- ROUTES -------------------
+# Initialize with some mixed songs
+for genre_list in genre_songs.values():
+    for title, artist in random.sample(genre_list, 2):
+        playlist.add_song(title, artist)
+
+
+# ---------------- ROUTES ----------------
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -134,7 +159,6 @@ def get_songs():
     while temp:
         songs.append({"title": temp.title, "artist": temp.artist})
         temp = temp.next
-
     current = {
         "title": playlist.current.title if playlist.current else "None",
         "artist": playlist.current.artist if playlist.current else "Unknown",
@@ -142,13 +166,39 @@ def get_songs():
         "duration": playlist.current.duration if playlist.current else FIXED_DURATION,
         "loop_current": playlist.loop_current
     }
-    return jsonify({"songs": songs, "current": current})
+    return jsonify({
+        "songs": songs,
+        "current": current,
+        "genres": list(genre_songs.keys())
+    })
+
+@app.route('/get_songs_by_genre/<genre>')
+def get_songs_by_genre(genre):
+    if genre not in genre_songs:
+        return jsonify([])
+    songs = [{"title": t, "artist": a} for t, a in genre_songs[genre]]
+    return jsonify(songs)
 
 @app.route('/add_song', methods=['POST'])
 def add_song():
     data = request.get_json()
-    playlist.add_song(data['title'], data.get('artist', 'Unknown'))
-    return jsonify({"message": "Song added!"})
+    genre = data.get('genre')
+    selected_title = data.get('title')
+
+    if genre not in genre_songs:
+        return jsonify({"error": "Invalid genre"}), 400
+
+    if selected_title:
+        for title, artist in genre_songs[genre]:
+            if title == selected_title:
+                playlist.add_song(title, artist)
+                return jsonify({"message": f"Added '{title}' from {genre}!"})
+        return jsonify({"error": "Song not found in genre"}), 404
+
+    # Add random song
+    title, artist = random.choice(genre_songs[genre])
+    playlist.add_song(title, artist)
+    return jsonify({"message": f"Added random '{title}' from {genre}!"})
 
 @app.route('/delete_song', methods=['POST'])
 def delete_song():
@@ -185,12 +235,10 @@ def toggle_loop():
     state = playlist.toggle_loop()
     return jsonify({"looping": state})
 
-# ✅ NEW ROUTE: Shuffle
 @app.route('/shuffle', methods=['POST'])
 def shuffle_songs():
     playlist.shuffle()
     return jsonify({"message": "Playlist shuffled!"})
 
-# ------------------- MAIN -------------------
 if __name__ == '__main__':
     app.run(debug=True)

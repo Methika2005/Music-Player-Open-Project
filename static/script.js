@@ -5,6 +5,7 @@ let LOOP_CURRENT = false;
 let currentTitle = null;
 let isSeeking = false;
 
+// ---------------- Fetch Songs ----------------
 async function fetchSongs({ reset = false } = {}) {
   const res = await fetch('/get_songs');
   const data = await res.json();
@@ -14,10 +15,16 @@ async function fetchSongs({ reset = false } = {}) {
   const playPauseBtn = document.getElementById('playPauseBtn');
   const totalTime = document.getElementById('totalTime');
   const loopBtn = document.getElementById('loopBtn');
+  const genreSelect = document.getElementById('genreSelect');
 
+  // Clear current list
   songList.innerHTML = '';
-  data.songs.forEach(song => {
+
+  // Populate playlist with drag-and-drop support
+  data.songs.forEach((song, index) => {
     const li = document.createElement('li');
+    li.setAttribute('draggable', true);
+    li.dataset.index = index;
     li.innerHTML = `
       <span>${song.title} — ${song.artist}</span>
       <div class="buttons">
@@ -28,6 +35,9 @@ async function fetchSongs({ reset = false } = {}) {
     songList.appendChild(li);
   });
 
+  // Drag and Drop handlers
+  addDragAndDrop(songList);
+
   currentSong.innerHTML = `${data.current.title} — <span>${data.current.artist}</span>`;
   playPauseBtn.textContent = data.current.is_playing ? '⏸️ Pause' : '▶️ Play';
 
@@ -36,36 +46,35 @@ async function fetchSongs({ reset = false } = {}) {
   totalTime.textContent = formatTime(SONG_DURATION);
   loopBtn.style.background = LOOP_CURRENT ? '#FFD700' : 'none';
 
-  const songChanged = currentTitle !== data.current.title;
-  if (songChanged) currentTitle = data.current.title;
-
-  const shouldReset = reset || songChanged;
-
-  if (data.current.is_playing) startProgress(shouldReset);
-  else {
-    clearInterval(progressInterval);
-    updateProgressUI();
+  // Populate genres if not already
+  if (genreSelect.options.length <= 1) {
+    data.genres.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g;
+      opt.textContent = g;
+      genreSelect.appendChild(opt);
+    });
   }
 }
 
+// ---------------- Time formatting ----------------
 function formatTime(seconds) {
   const min = Math.floor(seconds / 60);
   const sec = Math.floor(seconds % 60);
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
+// ---------------- Progress bar ----------------
 function updateProgressUI() {
   const bar = document.getElementById('progressBar');
   const knob = document.getElementById('progressKnob');
   const currentTime = document.getElementById('currentTime');
   const pct = SONG_DURATION > 0 ? (progress / SONG_DURATION) * 100 : 0;
-
   bar.style.width = `${Math.min(100, pct)}%`;
   knob.style.left = `${Math.min(100, pct)}%`;
   currentTime.textContent = formatTime(progress);
 }
 
-// 🌈 Smooth progress animation (every 100ms)
 function startProgress(reset = false) {
   clearInterval(progressInterval);
   if (reset) progress = 0;
@@ -86,100 +95,137 @@ function startProgress(reset = false) {
 
     if (progress >= SONG_DURATION) {
       clearInterval(progressInterval);
-      await fetch('/next', { method: 'POST' });
-      fetchSongs({ reset: true });
-      return;
+
+      // Loop same song
+      if (stateData.current.loop_current) {
+        progress = 0;
+        startProgress(true);
+      } else {
+        // Move to next song and start automatically
+        await fetch('/next', { method: 'POST' });
+        progress = 0;
+        fetchSongs({ reset: true }).then(() => startProgress(true));
+      }
     }
   }, 100);
 }
 
-// 🎚️ Draggable timeline
+// ---------------- Drag Seek ----------------
 const timeline = document.getElementById('timeline');
 const knob = document.getElementById('progressKnob');
+timeline.addEventListener('mousedown', startSeek);
+knob.addEventListener('mousedown', startSeek);
+window.addEventListener('mousemove', seekMove);
+window.addEventListener('mouseup', endSeek);
 
-timeline.addEventListener('mousedown', e => startSeek(e));
-knob.addEventListener('mousedown', e => startSeek(e));
-window.addEventListener('mousemove', e => seekMove(e));
-window.addEventListener('mouseup', e => endSeek(e));
-
-function startSeek(e) {
-  isSeeking = true;
-  knob.classList.add('dragging'); // add scale effect
-  document.body.style.cursor = "grabbing";
-  updateSeek(e);
-}
-
-function seekMove(e) {
-  if (!isSeeking) return;
-  updateSeek(e);
-}
-
-function endSeek(e) {
-  if (!isSeeking) return;
-  isSeeking = false;
-  knob.classList.remove('dragging'); // remove scale effect
-  document.body.style.cursor = "default";
-  updateSeek(e);
-}
-
+function startSeek(e) { isSeeking = true; knob.classList.add('dragging'); document.body.style.cursor = "grabbing"; updateSeek(e); }
+function seekMove(e) { if (!isSeeking) return; updateSeek(e); }
+function endSeek(e) { if (!isSeeking) return; isSeeking = false; knob.classList.remove('dragging'); document.body.style.cursor = "default"; updateSeek(e); }
 function updateSeek(e) {
   const rect = timeline.getBoundingClientRect();
   const offsetX = Math.min(Math.max(e.clientX - rect.left, 0), rect.width);
-  const newProgress = (offsetX / rect.width) * SONG_DURATION;
-  progress = newProgress;
+  progress = (offsetX / rect.width) * SONG_DURATION;
   updateProgressUI();
 }
 
 // ---------------- Playlist Actions ----------------
 async function selectSong(title) {
-  await fetch('/select_song', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title })
-  });
-  fetchSongs({ reset: true });
+  try {
+    const res = await fetch('/select_song', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title })
+    });
+    const data = await res.json();
+    if (data.error) return;
+
+    progress = 0;
+    document.getElementById('playPauseBtn').textContent = '⏸️ Pause';
+    startProgress(true);
+    fetchSongs({ reset: true });
+  } catch (err) {
+    console.error("Error selecting song:", err);
+  }
 }
 
 async function deleteSong(title) {
-  await fetch('/delete_song', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title })
-  });
-  fetchSongs({ reset: true });
+  await fetch('/delete_song', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
+
+  // If deleted song was current, auto-play next
+  progress = 0;
+  fetchSongs({ reset: true }).then(() => startProgress(true));
 }
 
-async function addSong(title, artist) {
+async function addSongByGenre(genre, title = null) {
   await fetch('/add_song', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, artist })
+    body: JSON.stringify({ genre, title })
   });
   fetchSongs();
+  resetDropdowns();
 }
 
-// ---------------- Button Events ----------------
-document.getElementById('addForm').addEventListener('submit', e => {
-  e.preventDefault();
-  const title = document.getElementById('title').value;
-  const artist = document.getElementById('artist').value;
-  addSong(title, artist);
-  e.target.reset();
+// ---------------- Dropdown Interactions ----------------
+document.getElementById('genreSelect').addEventListener('change', async e => {
+  const genre = e.target.value;
+  const songSelect = document.getElementById('songSelect');
+  songSelect.disabled = true;
+  songSelect.innerHTML = `<option>Loading...</option>`;
+  const res = await fetch(`/get_songs_by_genre/${genre}`);
+  const songs = await res.json();
+  songSelect.innerHTML = `<option value="">Select Song</option>`;
+  songs.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.title;
+    opt.textContent = `${s.title} — ${s.artist}`;
+    songSelect.appendChild(opt);
+  });
+  songSelect.disabled = false;
+});
+
+function resetDropdowns() {
+  const genreSelect = document.getElementById('genreSelect');
+  const songSelect = document.getElementById('songSelect');
+  genreSelect.value = "";
+  songSelect.innerHTML = `<option value="">Select Song</option>`;
+  songSelect.disabled = true;
+}
+
+// ---------------- Buttons ----------------
+document.getElementById('addSpecificBtn').addEventListener('click', async () => {
+  const genre = document.getElementById('genreSelect').value;
+  const song = document.getElementById('songSelect').value;
+  if (!genre) return alert("Select a genre first!");
+  if (!song) return alert("Select a song to add!");
+  addSongByGenre(genre, song);
+});
+
+document.getElementById('addRandomBtn').addEventListener('click', async () => {
+  const genre = document.getElementById('genreSelect').value;
+  if (!genre) return alert("Select a genre first!");
+  addSongByGenre(genre);
 });
 
 document.getElementById('playPauseBtn').addEventListener('click', async () => {
-  await fetch('/playpause', { method: 'POST' });
-  fetchSongs();
+  const res = await fetch('/playpause', { method: 'POST' });
+  const data = await res.json();
+  const btn = document.getElementById('playPauseBtn');
+  btn.textContent = data.is_playing ? '⏸️ Pause' : '▶️ Play';
+  if (data.is_playing) startProgress(false);
+  else clearInterval(progressInterval);
 });
 
 document.getElementById('nextBtn').addEventListener('click', async () => {
   await fetch('/next', { method: 'POST' });
-  fetchSongs({ reset: true });
+  progress = 0;
+  fetchSongs({ reset: true }).then(() => startProgress(true));
 });
 
 document.getElementById('prevBtn').addEventListener('click', async () => {
   await fetch('/prev', { method: 'POST' });
-  fetchSongs({ reset: true });
+  progress = 0;
+  fetchSongs({ reset: true }).then(() => startProgress(true));
 });
 
 document.getElementById('loopBtn').addEventListener('click', async () => {
@@ -189,11 +235,47 @@ document.getElementById('loopBtn').addEventListener('click', async () => {
   fetchSongs();
 });
 
-// 🔀 Shuffle button
 document.getElementById('shuffleBtn').addEventListener('click', async () => {
   await fetch('/shuffle', { method: 'POST' });
-  fetchSongs({ reset: true });
+  progress = 0;
+  fetchSongs({ reset: true }).then(() => startProgress(true));
 });
 
-// ---------------- Initialize ----------------
+// ---------------- Drag & Drop for Playlist ----------------
+function addDragAndDrop(list) {
+  let dragged = null;
+
+  list.addEventListener('dragstart', e => {
+    dragged = e.target;
+    e.target.style.opacity = 0.5;
+  });
+
+  list.addEventListener('dragend', e => {
+    dragged.style.opacity = "";
+    dragged = null;
+  });
+
+  list.addEventListener('dragover', e => e.preventDefault());
+
+  list.addEventListener('drop', async e => {
+    e.preventDefault();
+    if (!dragged) return;
+
+    const target = e.target.closest('li');
+    if (!target || target === dragged) return;
+
+    list.insertBefore(dragged, target.nextSibling);
+
+    // Send new order to server
+    const newOrder = Array.from(list.children).map(li => li.querySelector('span').textContent.split(' — ')[0]);
+    await fetch('/reorder_playlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newOrder })
+    });
+    fetchSongs({ reset: true });
+  });
+}
+
+// ---------------- Init ----------------
 fetchSongs();
